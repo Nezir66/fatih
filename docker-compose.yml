@@ -1,0 +1,54 @@
+services:
+  fatih:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: fatih-agent
+    working_dir: /app
+
+    # Keep container alive (use docker-compose exec to run commands)
+    command: tail -f /dev/null
+
+    # Volume mounts for live code reloading and persistent outputs
+    volumes:
+      - ./src:/app/src:ro              # Source code (read-only)
+      - ./config:/app/config:ro        # Configuration (read-only)
+      - ./outputs:/app/outputs         # Scan results (read-write)
+      - ./main.py:/app/main.py:ro      # Entry point (read-only)
+
+    # Environment variables (load from .env file)
+    env_file:
+      - .env
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    # Networking
+    networks:
+      - fatih-network
+
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Enable interactive mode for debugging
+    stdin_open: true
+    tty: true
+
+networks:
+  fatih-network:
+    driver: bridge

@@ -1,0 +1,108 @@
+# ` for Fatih Agent
+# Defines paths, default arguments, and execution parameters for security tools
+
+tools:
+  # Phase 1: Reconnaissance Tools
+  subfinder:
+    binary_path: "/usr/local/bin/subfinder"
+    default_args:
+      - "-silent"
+      - "-no-color"
+    timeout: 180
+    description: "Passive subdomain discovery"
+
+  naabu:
+    binary_path: "/usr/local/bin/naabu"
+    default_args:
+      - "-silent"
+      - "-no-color"
+    timeout: 300
+    description: "Fast port scanner"
+    rate_limit: 1000 # packets per second
+
+  httpx:
+    binary_path: "/usr/local/bin/httpx"
+    default_args:
+      - "-silent"
+      - "-no-color"
+      - "-tech-detect"
+      - "-status-code"
+      - "-content-length"
+    timeout: 120
+    description: "HTTP probing and tech detection"
+
+  # Phase 2: Vulnerability Scanning Tools
+  nuclei:
+    binary_path: "/usr/local/bin/nuclei"
+    templates_dir: "/root/nuclei-templates"
+    default_args:
+      - "-silent"
+      - "-no-color"
+      - "-stats"
+    timeout: 600
+    description: "Template-based vulnerability scanner"
+    rate_limit: 150 # requests per second
+
+  nmap:
+    binary_path: "/usr/bin/nmap"
+    default_args:
+      - "-sV" # Version detection
+      - "-T4" # Aggressive timing
+      - "--open" # Only show open ports
+    timeout: 300
+    description: "Network port scanner with service detection"
+
+  nikto:
+    binary_path: "/usr/bin/nikto"
+    default_args:
+      - "-Display"
+      - "1234EP" # Show redirects, cookies, errors, etc.
+      - "-Tuning"
+      - "123bde" # Interesting files, misconfigurations, injection
+    timeout: 600
+    description: "Web server vulnerability scanner"
+
+  whatweb:
+    binary_path: "/usr/bin/whatweb"
+    default_args:
+      - "-a"
+      - "3" # Aggression level (1=stealthy, 3=aggressive)
+      - "--color=never"
+    timeout: 60
+    description: "Web technology fingerprinting"
+
+  # Phase 3: Logic Flaw & Deep Inspection Tools
+  katana:
+    binary_path: "/usr/local/bin/katana"
+    default_args:
+      - "-silent"
+      - "-no-color"
+      - "-jsluice" # JavaScript file analysis
+    timeout: 300
+    description: "Web crawler for endpoint discovery"
+
+  ffuf:
+    binary_path: "/usr/local/bin/ffuf"
+    default_args:
+      - "-mc"
+      - "200,204,301,302,307,401,403" # Match these status codes
+      - "-fc"
+      - "404" # Filter out 404s
+      - "-c" # Colorized output (will be parsed)
+      - "-silent"
+    timeout: 300
+    description: "Fast web fuzzer for directories and parameters"
+
+# Global execution settings
+execution:
+  max_retries: 2
+  retry_delay: 5 # seconds
+  default_timeout: 180 # seconds
+  output_format: "json" # Prefer JSON output when available
+
+# Security constraints
+security:
+  scope_validation: true
+  command_sanitization: true
+  max_concurrent_scans: 3
+  rate_limiting_enabled: true
