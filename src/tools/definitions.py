@@ -59,10 +59,10 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                         },
                         "ports": {
                             "type": "string",
-                            "description": "Port range to scan. Examples: '80,443' for specific ports, '1-1000' for range, 'top-100' for common ports. If omitted, scans top 1000 common ports."
+                            "description": "Port range to scan. Examples: '80,443' for specific ports, '1-1000' for range, 'top-100' for common ports. Use empty string '' to scan top 1000 common ports (default behavior)."
                         }
                     },
-                    "required": ["target"],
+                    "required": ["target", "ports"],
                     "additionalProperties": False
                 },
                 "strict": True
@@ -82,10 +82,10 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                         },
                         "templates": {
                             "type": "string",
-                            "description": "Specific template path or filter. Examples: 'cves/' for CVE checks only, 'http/exposures/' for exposure detection, 'misconfiguration/' for misconfigs. If omitted, uses all available templates."
+                            "description": "Specific template path or filter. Examples: 'cves/' for CVE checks only, 'http/exposures/' for exposure detection, 'misconfiguration/' for misconfigs. Use empty string '' to use all available templates (default behavior)."
                         }
                     },
-                    "required": ["target"],
+                    "required": ["target", "templates"],
                     "additionalProperties": False
                 },
                 "strict": True

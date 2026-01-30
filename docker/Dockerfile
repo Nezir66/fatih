@@ -69,7 +69,7 @@ RUN python3 -m venv /opt/venv && \
 ENV PATH="/opt/venv/bin:${PATH}"
 
 # Switch to non-root user
-USER scanner
+#USER scanner
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

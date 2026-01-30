@@ -76,10 +76,11 @@ class BaseTool(ABC):
         # Step 2: Build the command
         command = self._build_command(target, **kwargs)
         
-        # Step 3: Execute the command
+        # Step 3: Execute the command in Docker container
         try:
+            docker_command = f"docker exec fatih-agent {command}"
             result = subprocess.run(
-                command,
+                docker_command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -89,7 +90,9 @@ class BaseTool(ABC):
             output = result.stdout
         except subprocess.CalledProcessError as e:
             # Tool returned non-zero exit code
-            # Return empty result rather than crashing
+            # Log stderr for debugging
+            if e.stderr:
+                print(f"[DEBUG] {self.tool_name} stderr: {e.stderr}")
             return self._handle_error(e, target)
         except subprocess.TimeoutExpired:
             # Tool timed out
