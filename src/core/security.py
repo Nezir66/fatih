@@ -52,17 +52,46 @@ class ScopeGuard:
         """
         Normalize the allowlist for efficient lookup.
         
+        Automatically adds both www and non-www variants for domains,
+        and extracts root domains to allow all subdomains.
+        
         Args:
             targets: List of allowed domains/IPs
             
         Returns:
-            Set of normalized target strings
+            Set of normalized target strings including www variants and root domains
         """
         normalized = set()
         for target in targets:
             cleaned = self._extract_hostname(target)
             if cleaned:
-                normalized.add(cleaned.lower())
+                cleaned = cleaned.lower()
+                normalized.add(cleaned)
+                
+                # For domains (not IPs), add www variant and root domain
+                if not self._is_ip(cleaned):
+                    # Add www variant if not present
+                    if cleaned.startswith('www.'):
+                        # www.example.com -> example.com (root domain)
+                        root_domain = cleaned[4:]
+                        normalized.add(root_domain)
+                    else:
+                        # example.com -> www.example.com
+                        www_variant = f'www.{cleaned}'
+                        normalized.add(www_variant)
+                    
+                    # Also extract and add root domain for any subdomain
+                    # api.sub.example.com -> sub.example.com -> example.com
+                    parts = cleaned.split('.')
+                    if len(parts) > 2:
+                        # Could be a subdomain like api.example.com or api.sub.example.com
+                        # Add the root domain (last 2 parts)
+                        root_domain = '.'.join(parts[-2:])
+                        normalized.add(root_domain)
+                        # And www variant of root
+                        www_root = f'www.{root_domain}'
+                        normalized.add(www_root)
+        
         return normalized
     
     def _extract_hostname(self, target: str) -> str:

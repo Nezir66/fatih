@@ -18,6 +18,7 @@ RUN apt-get update && apt-get upgrade -y && \
     git \
     unzip \
     tar \
+    ca-certificates \
     # Python environment
     python3 \
     python3-pip \
@@ -34,6 +35,18 @@ RUN apt-get update && apt-get upgrade -y && \
     # Networking tools
     netcat-traditional \
     dnsutils \
+    # Playwright/Chromium dependencies for headless browser
+    chromium \
+    chromium-driver \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libgtk-3-0 \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -47,7 +60,7 @@ RUN useradd -m -s /bin/bash -u 1000 scanner && \
 COPY docker/scripts/install_tools.sh /tmp/install_tools.sh
 RUN chmod +x /tmp/install_tools.sh
 
-# Install Go-based security tools (Subfinder, Naabu, Httpx, Nuclei, etc.)
+# Install security tools (Katana, Nikto, WhatWeb)
 RUN /tmp/install_tools.sh && rm /tmp/install_tools.sh
 
 # Copy verification script for testing
@@ -63,7 +76,8 @@ COPY requirements.txt /app/requirements.txt
 # Create Python virtual environment and install dependencies (PEP 668 compliant)
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt && \
+    /opt/venv/bin/playwright install chromium
 
 # Add venv to PATH so all Python commands use it
 ENV PATH="/opt/venv/bin:${PATH}"

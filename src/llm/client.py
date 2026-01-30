@@ -3,7 +3,7 @@ LLM Client for Fatih - Unified interface to OpenAI and Anthropic APIs.
 
 This module provides a generic LLM client that abstracts away provider-specific
 details, offering a consistent interface for the orchestrator. It supports:
-- OpenAI GPT models (GPT-4o, GPT-4, etc.)
+- OpenAI GPT models (GPT-5.1, GPT-5.2, etc.)
 - Configurable parameters (temperature, max_tokens)
 - Automatic retry logic with exponential backoff
 - Normalized response format regardless of provider
@@ -62,8 +62,8 @@ class LLMClient:
         >>> print(response.content)
     
     Args:
-        model: Model identifier (e.g., 'gpt-4o', 'claude-3-5-sonnet-20241022').
-               Defaults to LLM_MODEL env var or 'gpt-4o'.
+        model: Model identifier (e.g., 'GPT-5.1', 'claude-3-5-sonnet-20241022').
+               Defaults to LLM_MODEL env var or 'GPT-5.1'.
         api_key: API key for authentication. Defaults to provider-specific env var.
         temperature: Sampling temperature (0.0-2.0). Defaults to 0.1 for deterministic output.
         max_tokens: Maximum tokens in response. Defaults to 4096.
@@ -79,7 +79,7 @@ class LLMClient:
         max_retries: int = 3
     ):
         # Configuration
-        self.model = model or os.getenv("LLM_MODEL", "gpt-4o")
+        self.model = model or os.getenv("LLM_MODEL", "gpt-5.1")
         self.temperature = float(os.getenv("LLM_TEMPERATURE", temperature))
         self.max_tokens = int(os.getenv("LLM_MAX_TOKENS", max_tokens))
         self.max_retries = max_retries
@@ -101,7 +101,7 @@ class LLMClient:
             # Anthropic - would need adapter implementation
             raise NotImplementedError(
                 "Anthropic support not yet implemented. "
-                "Please use an OpenAI model (gpt-4o, gpt-4-turbo, etc.)"
+                "Please use an OpenAI model (GPT-5.1, gpt-5.2, etc.)"
             )
         else:
             # Default to OpenAI
@@ -160,7 +160,7 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
+            "max_completion_tokens": self.max_tokens,
         }
         
         # Add tools if provided
@@ -303,7 +303,7 @@ def create_llm_client(
     This is a convenience wrapper for quick client creation.
     
     Args:
-        model: Model identifier (defaults to env var or 'gpt-4o')
+        model: Model identifier (defaults to env var or 'gpt-5.1')
         api_key: API key (defaults to env var)
         temperature: Sampling temperature (default: 0.1)
         max_tokens: Max response tokens (default: 4096)

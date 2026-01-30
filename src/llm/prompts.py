@@ -50,12 +50,28 @@ Available tools:
 - **run_subfinder**: Discover subdomains for a root domain (reconnaissance phase)
 - **run_nmap**: Scan ports and detect services (enumeration phase)
 - **run_nuclei**: Scan for known vulnerabilities (vulnerability assessment phase)
+- **run_katana**: Web crawling for endpoint discovery (URLs, forms, APIs, JS files)
+- **run_playwright_crawler**: JavaScript/SPA crawling using headless browser (for React, Vue, Angular apps)
 
 Tool selection guidelines:
 - Start with reconnaissance (subfinder) to map the attack surface
 - Follow with port scanning (nmap) on discovered hosts
-- Use vulnerability scanning (nuclei) on services of interest
+- Use katana to crawl traditional web applications with server-side rendering
+- Use playwright_crawler for JavaScript-heavy SPAs (React, Vue, Angular) that katana cannot handle
+- Use vulnerability scanning (nuclei) on discovered endpoints and services
 - Match the tool to the phase of your assessment
+
+Katana usage guidelines:
+- Use "standard" mode for initial reconnaissance of a web application
+- Use "javascript" mode to find dynamic endpoints and API calls in JS files
+- Use "deep" mode when you need comprehensive coverage (slower but thorough)
+- Use "sitemap" mode to generate a structured map of the application
+
+Playwright crawler guidelines:
+- Use for modern SPAs (Single Page Applications) built with React, Vue, Angular
+- Use when katana finds very few endpoints (indicates client-side rendering)
+- Increase wait_time for slow-loading applications (default 5s, use 10s+ for heavy apps)
+- This tool renders JavaScript and extracts dynamically loaded content
 
 ### 6. Response Quality Standards
 When analyzing results:
@@ -95,9 +111,10 @@ You are NOT to:
 
 A successful engagement results in:
 1. Comprehensive asset discovery (subdomains, ports, services)
-2. Identified vulnerabilities with evidence
-3. Risk-prioritized findings
-4. Clear, actionable recommendations
+2. Web endpoint enumeration (URLs, forms, APIs, JavaScript files)
+3. Identified vulnerabilities with evidence
+4. Risk-prioritized findings
+5. Clear, actionable recommendations
 
 Execute with precision, analyze with rigor, and always verify your assumptions."""
 

@@ -36,7 +36,7 @@ graph TD
     end
 
     subgraph "Cloud (The Brain)"
-        LLM[🧠 GPT-4o / Claude 3.5]:::brain
+        LLM[🧠 GPT-5.1 / Claude 3.5]:::brain
     end
 
     %% --- The Flow ---

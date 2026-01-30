@@ -90,6 +90,57 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                 },
                 "strict": True
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_katana",
+                "description": "Crawl a website to discover endpoints, forms, APIs, and JavaScript files. Returns structured endpoint data with URLs, HTTP methods, parameters, and endpoint types for further security testing.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target URL to crawl (e.g., 'https://example.com'). Must include protocol (http/https)."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["standard", "deep", "javascript", "sitemap"],
+                            "description": "Crawl mode: 'standard' for normal crawling (default), 'deep' for aggressive deep crawling with higher depth, 'javascript' to parse JavaScript files for dynamic/API endpoints, 'sitemap' to generate XML sitemap"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "Maximum crawl depth levels to follow (default: 3, max: 5). Higher values discover more endpoints but take longer."
+                        }
+                    },
+                    "required": ["target", "mode", "depth"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_playwright_crawler",
+                "description": "Crawl JavaScript-heavy websites and SPAs (Single Page Applications) using a headless browser. This tool renders JavaScript and extracts dynamically loaded content that traditional crawlers miss. Use this for React, Vue, Angular, or other modern web apps.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target URL to crawl (e.g., 'https://example.com'). Must include protocol (http/https)."
+                        },
+                        "wait_time": {
+                            "type": "integer",
+                            "description": "Seconds to wait for JavaScript rendering (default: 5). Increase for slow-loading SPAs."
+                        }
+                    },
+                    "required": ["target", "wait_time"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
         }
     ]
 

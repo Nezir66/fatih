@@ -2,100 +2,144 @@
 set -e
 
 echo "=== Installing ProjectDiscovery and Security Tools ==="
+echo "Architecture: $(uname -m)"
 
-# Tool versions (pinned for reproducibility)
-SUBFINDER_VERSION="2.6.3"
-NAABU_VERSION="2.3.0"
-HTTPX_VERSION="1.3.7"
-NUCLEI_VERSION="3.1.10"
-KATANA_VERSION="1.0.5"
-FFUF_VERSION="2.1.0"
+# Tool versions
+SUBFINDER_VERSION="v2.6.3"
+NAABU_VERSION="v2.3.0"
+HTTPX_VERSION="v1.3.7"
+NUCLEI_VERSION="v3.1.10"
+KATANA_VERSION="v1.0.5"
+FFUF_VERSION="v2.1.0"
 NIKTO_VERSION="2.5.0"
 WHATWEB_VERSION="0.6.3"
 
-# Create temporary directory
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ]; then
+    GO_ARCH="arm64"
+    echo "Detected ARM64 architecture"
+else
+    GO_ARCH="amd64"
+    echo "Detected AMD64 architecture"
+fi
+
+# Install Go 1.21 for building Katana
+echo "Installing Go 1.21..."
+wget -q "https://go.dev/dl/go1.21.6.linux-${GO_ARCH}.tar.gz"
+tar -C /usr/local -xzf "go1.21.6.linux-${GO_ARCH}.tar.gz"
+rm "go1.21.6.linux-${GO_ARCH}.tar.gz"
+
+export PATH="/usr/local/go/bin:$PATH"
+export GOPATH=/opt/go
+export GOBIN=/usr/local/bin
+mkdir -p $GOPATH
+
+# Function to download and install binary
+download_and_install() {
+    local tool_name=$1
+    local version=$2
+    local url=$3
+    local filename=$4
+    local extract_cmd=$5
+    
+    echo "Installing ${tool_name} ${version}..."
+    
+    if wget -q "$url" 2>/dev/null; then
+        case "$extract_cmd" in
+            "unzip")
+                unzip -o -q "$filename"
+                ;;
+            "tar")
+                tar -xzf "$filename"
+                ;;
+        esac
+        
+        mv "$tool_name" /usr/local/bin/ 2>/dev/null || true
+        chmod +x /usr/local/bin/"$tool_name" 2>/dev/null || true
+        rm -f "$filename"
+        echo "  ✓ ${tool_name} installed"
+    else
+        echo "  ✗ Failed to download ${tool_name}"
+        return 1
+    fi
+}
+
+# Create temp directory
 TEMP_DIR="/tmp/tools_install"
 mkdir -p "$TEMP_DIR"
 cd "$TEMP_DIR"
 
-# Install Subfinder
-echo "Installing Subfinder v${SUBFINDER_VERSION}..."
-wget -q "https://github.com/projectdiscovery/subfinder/releases/download/v${SUBFINDER_VERSION}/subfinder_${SUBFINDER_VERSION}_linux_amd64.zip"
-unzip -o -q "subfinder_${SUBFINDER_VERSION}_linux_amd64.zip"
-mv subfinder /usr/local/bin/
-chmod +x /usr/local/bin/subfinder
+# Install Katana from source (ARM64 compatible)
+echo "Installing Katana ${KATANA_VERSION} from source..."
+go install github.com/projectdiscovery/katana/cmd/katana@${KATANA_VERSION}
 
-# Install Naabu
-echo "Installing Naabu v${NAABU_VERSION}..."
-wget -q "https://github.com/projectdiscovery/naabu/releases/download/v${NAABU_VERSION}/naabu_${NAABU_VERSION}_linux_amd64.zip"
-unzip -o -q "naabu_${NAABU_VERSION}_linux_amd64.zip"
-mv naabu /usr/local/bin/
-chmod +x /usr/local/bin/naabu
+# Install other tools from AMD64 binaries (will use emulation on ARM64)
+echo ""
+echo "Installing other tools from AMD64 binaries..."
+echo "Note: These will run through emulation on ARM64 (slower but functional)"
 
-# Install Httpx
-echo "Installing Httpx v${HTTPX_VERSION}..."
-wget -q "https://github.com/projectdiscovery/httpx/releases/download/v${HTTPX_VERSION}/httpx_${HTTPX_VERSION}_linux_amd64.zip"
-unzip -o -q "httpx_${HTTPX_VERSION}_linux_amd64.zip"
-mv httpx /usr/local/bin/
-chmod +x /usr/local/bin/httpx
+# Try to install AMD64 versions as fallback
+download_and_install "subfinder" "$SUBFINDER_VERSION" \
+    "https://github.com/projectdiscovery/subfinder/releases/download/${SUBFINDER_VERSION}/subfinder_${SUBFINDER_VERSION#v}_linux_amd64.zip" \
+    "subfinder_${SUBFINDER_VERSION#v}_linux_amd64.zip" \
+    "unzip" || true
 
-# Install Nuclei
-echo "Installing Nuclei v${NUCLEI_VERSION}..."
-wget -q "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_amd64.zip"
-unzip -o -q "nuclei_${NUCLEI_VERSION}_linux_amd64.zip"
-mv nuclei /usr/local/bin/
-chmod +x /usr/local/bin/nuclei
+download_and_install "naabu" "$NAABU_VERSION" \
+    "https://github.com/projectdiscovery/naabu/releases/download/${NAABU_VERSION}/naabu_${NAABU_VERSION#v}_linux_amd64.zip" \
+    "naabu_${NAABU_VERSION#v}_linux_amd64.zip" \
+    "unzip" || true
 
-# Install Katana
-echo "Installing Katana v${KATANA_VERSION}..."
-wget -q "https://github.com/projectdiscovery/katana/releases/download/v${KATANA_VERSION}/katana_${KATANA_VERSION}_linux_amd64.zip"
-unzip -o -q "katana_${KATANA_VERSION}_linux_amd64.zip"
-mv katana /usr/local/bin/
-chmod +x /usr/local/bin/katana
+download_and_install "httpx" "$HTTPX_VERSION" \
+    "https://github.com/projectdiscovery/httpx/releases/download/${HTTPX_VERSION}/httpx_${HTTPX_VERSION#v}_linux_amd64.zip" \
+    "httpx_${HTTPX_VERSION#v}_linux_amd64.zip" \
+    "unzip" || true
 
-# Install ffuf
-echo "Installing ffuf v${FFUF_VERSION}..."
-wget -q "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_linux_amd64.tar.gz"
-tar -xzf "ffuf_${FFUF_VERSION}_linux_amd64.tar.gz"
-mv ffuf /usr/local/bin/
-chmod +x /usr/local/bin/ffuf
+download_and_install "nuclei" "$NUCLEI_VERSION" \
+    "https://github.com/projectdiscovery/nuclei/releases/download/${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION#v}_linux_amd64.zip" \
+    "nuclei_${NUCLEI_VERSION#v}_linux_amd64.zip" \
+    "unzip" || true
 
-# Install Nikto (manually from GitHub for latest version)
-echo "Installing Nikto v${NIKTO_VERSION} from source..."
+download_and_install "ffuf" "$FFUF_VERSION" \
+    "https://github.com/ffuf/ffuf/releases/download/${FFUF_VERSION}/ffuf_${FFUF_VERSION#v}_linux_amd64.tar.gz" \
+    "ffuf_${FFUF_VERSION#v}_linux_amd64.tar.gz" \
+    "tar" || true
+
+# Install Nikto (manually from GitHub)
+echo "Installing Nikto v${NIKTO_VERSION}..."
 git clone --depth 1 --branch ${NIKTO_VERSION} https://github.com/sullo/nikto.git /opt/nikto
 ln -s /opt/nikto/program/nikto.pl /usr/local/bin/nikto
 chmod +x /opt/nikto/program/nikto.pl
 
-# Install WhatWeb (manually from GitHub for latest version)
-echo "Installing WhatWeb v${WHATWEB_VERSION} from source..."
+# Install WhatWeb (manually from GitHub)
+echo "Installing WhatWeb v${WHATWEB_VERSION}..."
 git clone --depth 1 --branch v${WHATWEB_VERSION} https://github.com/urbanadventurer/WhatWeb.git /opt/whatweb
 cd /opt/whatweb
-# Install Ruby dependencies
 bundle install --system
 cd "$TEMP_DIR"
 ln -s /opt/whatweb/whatweb /usr/local/bin/whatweb
 chmod +x /opt/whatweb/whatweb
 
-# Update Nuclei templates
-echo "Updating Nuclei templates..."
-nuclei -update-templates -silent || true
+# Cleanup Go build cache
+go clean -cache
+rm -rf $GOPATH/pkg
 
-# Cleanup
-echo "Cleaning up temporary files..."
+# Cleanup temp files
 cd /
 rm -rf "$TEMP_DIR"
 
-# Verify installations
 echo ""
 echo "=== Verification ==="
-echo "Subfinder: $(subfinder -version 2>&1 | head -n1 || echo 'FAILED')"
-echo "Naabu: $(naabu -version 2>&1 | head -n1 || echo 'FAILED')"
-echo "Httpx: $(httpx -version 2>&1 | head -n1 || echo 'FAILED')"
-echo "Nuclei: $(nuclei -version 2>&1 | head -n1 || echo 'FAILED')"
-echo "Katana: $(katana -version 2>&1 | head -n1 || echo 'FAILED')"
-echo "ffuf: $(ffuf -V 2>&1 | head -n1 || echo 'FAILED')"
-echo "Nikto: $(nikto -Version 2>&1 | grep 'Nikto v' || echo 'FAILED')"
-echo "WhatWeb: $(whatweb --version 2>&1 | head -n1 || echo 'FAILED')"
-echo "Nmap (from apt): $(nmap --version 2>&1 | head -n1 || echo 'FAILED')"
+echo "Katana: $(katana -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Subfinder: $(subfinder -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Naabu: $(naabu -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Httpx: $(httpx -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Nuclei: $(nuclei -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "ffuf: $(ffuf -V 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Nikto: $(nikto -Version 2>&1 | grep 'Nikto v' || echo 'NOT INSTALLED')"
+echo "WhatWeb: $(whatweb --version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
+echo "Nmap: $(nmap --version 2>&1 | head -n1 || echo 'NOT INSTALLED')"
 echo ""
-echo "=== All tools installed successfully! ==="
+echo "=== Installation complete! ==="
+echo "Note: Katana runs natively on ARM64."
+echo "Other Go tools run through AMD64 emulation (may be slower)."

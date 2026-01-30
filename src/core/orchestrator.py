@@ -18,7 +18,9 @@ from src.llm.prompts import SYSTEM_PROMPT
 from src.tools.definitions import ALL_TOOLS
 from src.tools.discovery.subfinder import SubfinderTool
 from src.tools.network.nmap import NmapTool
+from src.tools.web.katana import KatanaTool
 from src.tools.web.nuclei import NucleiTool
+from src.tools.web.playwright_crawler import PlaywrightCrawlerTool
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +78,16 @@ class Orchestrator:
         self.nmap_tool = NmapTool(self.scope_guard)
         self.nuclei_tool = NucleiTool(self.scope_guard)
         self.subfinder_tool = SubfinderTool(self.scope_guard)
+        self.katana_tool = KatanaTool(self.scope_guard)
+        self.playwright_tool = PlaywrightCrawlerTool(self.scope_guard)
         
         # Tool mapping: function names from definitions -> tool instances
         self.tool_map = {
             "run_nmap": self.nmap_tool,
             "run_nuclei": self.nuclei_tool,
-            "run_subfinder": self.subfinder_tool
+            "run_subfinder": self.subfinder_tool,
+            "run_katana": self.katana_tool,
+            "run_playwright_crawler": self.playwright_tool
         }
         
         # Message history for LLM context
@@ -351,6 +357,35 @@ class Orchestrator:
                         tool="nuclei"
                     )
                 logger.info(f"Added {len(result)} vulnerabilities from nuclei scan")
+        
+        elif tool_name == "run_katana":
+            # Result is Dict with endpoints and sitemap
+            if isinstance(result, dict) and "endpoints" in result:
+                endpoints = result["endpoints"]
+                sitemap = result.get("sitemap")
+                
+                # Add each endpoint to state
+                for endpoint in endpoints:
+                    self.state_manager.add_web_endpoint(target, endpoint)
+                
+                # Mark crawl as completed
+                self.state_manager.complete_crawl(target, sitemap)
+                
+                logger.info(f"Added {len(endpoints)} endpoints from katana crawl for {target}")
+        
+        elif tool_name == "run_playwright_crawler":
+            # Result is Dict with endpoints (same format as Katana)
+            if isinstance(result, dict) and "endpoints" in result:
+                endpoints = result["endpoints"]
+                
+                # Add each endpoint to state
+                for endpoint in endpoints:
+                    self.state_manager.add_web_endpoint(target, endpoint)
+                
+                # Mark crawl as completed
+                self.state_manager.complete_crawl(target, None)
+                
+                logger.info(f"Added {len(endpoints)} endpoints from playwright crawl for {target}")
     
     def _summarize_result(self, result: Any) -> str:
         """Create a brief summary of tool result for action history."""
@@ -358,10 +393,12 @@ class Orchestrator:
             return f"List with {len(result)} items"
         elif hasattr(result, 'get_open_ports'):
             return f"Host with {len(result.get_open_ports())} open ports"
-        elif isinstance(result, dict) and "error" in result:
-            return f"Error: {result['error']}"
-        else:
-            return "Success"
+        elif isinstance(result, dict):
+            if "error" in result:
+                return f"Error: {result['error']}"
+            elif "endpoints" in result:
+                return f"Crawl with {result.get('total_count', 0)} endpoints"
+        return "Success"
     
     def export_report(self, output_path: str = "outputs/report.json") -> None:
         """

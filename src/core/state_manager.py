@@ -7,6 +7,7 @@ with support for deduplication, persistence, and AI-friendly context generation.
 
 import hashlib
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime
@@ -16,6 +17,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+logger = logging.getLogger(__name__)
+
 
 class Severity(str, Enum):
     """Vulnerability severity levels."""
@@ -24,6 +27,16 @@ class Severity(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
     INFO = "info"
+
+
+class EndpointType(str, Enum):
+    """Types of web endpoints discovered during crawling."""
+    PAGE = "page"
+    FORM = "form"
+    API = "api"
+    JS_ENDPOINT = "js_endpoint"
+    REDIRECT = "redirect"
+    STATIC_FILE = "static_file"
 
 
 class PortState(str, Enum):
@@ -50,6 +63,74 @@ class Service(BaseModel):
             "name": self.name,
             "version": self.version,
             "product": self.product
+        }
+
+
+class WebEndpoint(BaseModel):
+    """Discovered web endpoint (URL, form, API)."""
+    url: str
+    method: str = "GET"
+    endpoint_type: EndpointType = EndpointType.PAGE
+    parameters: List[str] = Field(default_factory=list)
+    status_code: Optional[int] = None
+    content_type: Optional[str] = None
+    source: str = "crawl"  # "crawl", "js_analysis", "sitemap"
+    discovered_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    def to_summary(self) -> Dict[str, Any]:
+        """Return a compact summary for AI context."""
+        return {
+            "url": self.url,
+            "method": self.method,
+            "type": self.endpoint_type.value,
+            "status": self.status_code,
+            "params": self.parameters
+        }
+
+
+class WebHost(BaseModel):
+    """Web-specific host data extending Host with crawling results."""
+    base_url: str
+    endpoints: List[WebEndpoint] = Field(default_factory=list)
+    sitemap: Optional[str] = None
+    js_files: List[str] = Field(default_factory=list)
+    forms: List[Dict[str, Any]] = Field(default_factory=list)
+    apis: List[Dict[str, Any]] = Field(default_factory=list)
+    crawl_completed: bool = False
+    last_crawled: Optional[datetime] = None
+    
+    def add_endpoint(self, endpoint: WebEndpoint) -> bool:
+        """Add endpoint if not duplicate. Returns True if added."""
+        existing_urls = {e.url for e in self.endpoints}
+        if endpoint.url in existing_urls:
+            return False
+        self.endpoints.append(endpoint)
+        
+        # Categorize by type
+        if endpoint.endpoint_type == EndpointType.FORM:
+            self.forms.append(endpoint.to_summary())
+        elif endpoint.endpoint_type == EndpointType.API:
+            self.apis.append(endpoint.to_summary())
+        elif endpoint.endpoint_type == EndpointType.JS_ENDPOINT:
+            if endpoint.url not in self.js_files:
+                self.js_files.append(endpoint.url)
+        
+        return True
+    
+    def get_endpoints_by_type(self, endpoint_type: EndpointType) -> List[WebEndpoint]:
+        """Get all endpoints of a specific type."""
+        return [e for e in self.endpoints if e.endpoint_type == endpoint_type]
+    
+    def to_summary(self) -> Dict[str, Any]:
+        """Return a compact summary for AI context."""
+        return {
+            "base_url": self.base_url,
+            "total_endpoints": len(self.endpoints),
+            "pages": len(self.get_endpoints_by_type(EndpointType.PAGE)),
+            "forms": len(self.forms),
+            "apis": len(self.apis),
+            "js_files": len(self.js_files),
+            "crawl_completed": self.crawl_completed
         }
 
 
@@ -202,6 +283,7 @@ class Session(BaseModel):
     start_time: datetime = Field(default_factory=datetime.utcnow)
     config: Dict[str, Any] = Field(default_factory=dict)
     hosts: Dict[str, Host] = Field(default_factory=dict)
+    web_hosts: Dict[str, WebHost] = Field(default_factory=dict)
     executed_actions: List[Action] = Field(default_factory=list)
     
     def get_or_create_host(self, identifier: str) -> Host:
@@ -387,6 +469,91 @@ class StateManager:
         for host in self.session.hosts.values():
             all_ports.extend(host.get_open_ports())
         return all_ports
+    
+    # ==================== Web Host Management ====================
+    
+    def add_web_host(self, base_url: str) -> WebHost:
+        """Add or retrieve a web host for crawling results.
+        
+        Args:
+            base_url: The base URL of the web application (e.g., 'https://example.com')
+            
+        Returns:
+            WebHost object
+        """
+        base_url = base_url.strip().lower()
+        if base_url not in self.session.web_hosts:
+            self.session.web_hosts[base_url] = WebHost(base_url=base_url)
+            logger.debug(f"Created WebHost for {base_url}")
+        self._trigger_auto_save()
+        return self.session.web_hosts[base_url]
+    
+    def get_web_host(self, base_url: str) -> Optional[WebHost]:
+        """Get web host by base URL."""
+        base_url = base_url.strip().lower()
+        return self.session.web_hosts.get(base_url)
+    
+    def add_web_endpoint(self, base_url: str, endpoint: WebEndpoint) -> bool:
+        """Add a web endpoint to a web host.
+        
+        Args:
+            base_url: The base URL of the web application
+            endpoint: WebEndpoint object to add
+            
+        Returns:
+            True if added, False if duplicate
+        """
+        web_host = self.add_web_host(base_url)
+        result = web_host.add_endpoint(endpoint)
+        if result:
+            web_host.last_crawled = datetime.utcnow()
+            self._trigger_auto_save()
+            logger.debug(f"Added endpoint to {base_url}: {endpoint.url}")
+        return result
+    
+    def get_web_endpoints(self, base_url: str, 
+                         endpoint_type: Optional[EndpointType] = None) -> List[WebEndpoint]:
+        """Get all web endpoints for a host, optionally filtered by type.
+        
+        Args:
+            base_url: The base URL of the web application
+            endpoint_type: Optional filter by endpoint type
+            
+        Returns:
+            List of WebEndpoint objects
+        """
+        web_host = self.get_web_host(base_url)
+        if not web_host:
+            return []
+        
+        if endpoint_type:
+            return web_host.get_endpoints_by_type(endpoint_type)
+        return web_host.endpoints
+    
+    def get_forms(self, base_url: str) -> List[Dict[str, Any]]:
+        """Get all discovered forms for a web host."""
+        web_host = self.get_web_host(base_url)
+        return web_host.forms if web_host else []
+    
+    def get_api_endpoints(self, base_url: str) -> List[Dict[str, Any]]:
+        """Get all discovered API endpoints for a web host."""
+        web_host = self.get_web_host(base_url)
+        return web_host.apis if web_host else []
+    
+    def complete_crawl(self, base_url: str, sitemap: Optional[str] = None) -> None:
+        """Mark a web host crawl as completed.
+        
+        Args:
+            base_url: The base URL of the web application
+            sitemap: Optional XML sitemap content
+        """
+        web_host = self.add_web_host(base_url)
+        web_host.crawl_completed = True
+        web_host.last_crawled = datetime.utcnow()
+        if sitemap:
+            web_host.sitemap = sitemap
+        self._trigger_auto_save()
+        logger.info(f"Crawl completed for {base_url}: {len(web_host.endpoints)} endpoints discovered")
     
     # ==================== Vulnerability Management ====================
     
