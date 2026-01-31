@@ -47,6 +47,9 @@ class Orchestrator:
         >>> orchestrator.run()
     """
     
+    # Maximum number of messages to keep in history (prevents context overflow)
+    MAX_HISTORY_MESSAGES = 50
+    
     def __init__(self, target_url: str, max_iterations: int = 20):
         """
         Initialize the orchestrator with all required components.
@@ -93,7 +96,7 @@ class Orchestrator:
             "run_httpx": self.httpx_tool
         }
         
-        # Message history for LLM context
+        # Message history for LLM context (limited to prevent overflow)
         self.message_history: List[Dict[str, Any]] = []
         
         logger.info(f"Orchestrator initialized for target: {target_url}")
@@ -266,7 +269,29 @@ class Orchestrator:
             }
             self.message_history.append(tool_response)
         
+        # Manage history size to prevent context overflow
+        self._manage_history_size()
+        
         return True
+    
+    def _manage_history_size(self) -> None:
+        """
+        Manage message history size to prevent context overflow.
+        
+        Keeps only the most recent MAX_HISTORY_MESSAGES messages.
+        When limit is reached, removes oldest messages (but keeps
+        the structure intact - removes in pairs to maintain
+        assistant/tool message relationships).
+        """
+        if len(self.message_history) > self.MAX_HISTORY_MESSAGES:
+            # Remove oldest messages, but keep the structure
+            # We remove from the beginning, keeping the most recent ones
+            overflow = len(self.message_history) - self.MAX_HISTORY_MESSAGES
+            # Round up to nearest even number to preserve pairs
+            if overflow % 2 != 0:
+                overflow += 1
+            logger.debug(f"History overflow: removing {overflow} oldest messages")
+            self.message_history = self.message_history[overflow:]
     
     def _execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """

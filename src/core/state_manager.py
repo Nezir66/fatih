@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.utils.validators import is_ip_address
+
 logger = logging.getLogger(__name__)
 
 
@@ -366,9 +368,7 @@ class Session(BaseModel):
     
     def _is_ip(self, identifier: str) -> bool:
         """Check if identifier is an IP address."""
-        import re
-        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        return bool(re.match(ip_pattern, identifier))
+        return is_ip_address(identifier)
     
     def link_ip_to_domain(self, ip: str, domain: str) -> None:
         """Link an IP to a domain when both are discovered."""
@@ -461,7 +461,7 @@ class StateManager:
     def _generate_fingerprint(self, target_id: str, vuln_id: str, location: str) -> str:
         """Generate unique fingerprint for vulnerability deduplication."""
         raw = f"{target_id}|{vuln_id}|{location}"
-        return hashlib.md5(raw.encode()).hexdigest()
+        return hashlib.sha256(raw.encode()).hexdigest()
     
     def _trigger_auto_save(self) -> None:
         """Save snapshot if auto-save is enabled."""

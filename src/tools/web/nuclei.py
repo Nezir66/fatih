@@ -184,7 +184,7 @@ class NucleiTool(BaseTool):
     def _generate_fingerprint(self, target: str, vuln_id: str, location: str) -> str:
         """Generate unique fingerprint for vulnerability deduplication."""
         raw = f"{target}|{vuln_id}|{location}"
-        return hashlib.md5(raw.encode()).hexdigest()
+        return hashlib.sha256(raw.encode()).hexdigest()
     
     def _get_empty_result(self, target: str) -> List[Vulnerability]:
         """Return empty list when nuclei fails."""

@@ -11,6 +11,7 @@ from typing import Optional
 
 from src.core.state_manager import Host, Port, PortState, Service
 from src.tools.base import BaseTool
+from src.utils.validators import is_ip_address
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +173,7 @@ class NmapTool(BaseTool):
     
     def _is_ip(self, target: str) -> bool:
         """Check if target is an IP address."""
-        import re
-        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        return bool(re.match(ip_pattern, target))
+        return is_ip_address(target)
     
     def _get_empty_result(self, target: str) -> Host:
         """Return empty Host object when nmap fails."""

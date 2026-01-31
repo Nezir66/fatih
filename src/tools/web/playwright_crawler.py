@@ -282,8 +282,3 @@ EOF"""
     def _get_empty_result(self, target: str) -> Dict[str, Any]:
         """Return empty result when crawler fails."""
         return {"endpoints": [], "total_count": 0}
-    
-    def _handle_error(self, error, target: str) -> Dict[str, Any]:
-        """Handle Playwright execution errors."""
-        logger.error(f"Playwright crawler failed for {target}: {error}")
-        return self._get_empty_result(target)

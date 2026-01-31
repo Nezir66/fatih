@@ -7,7 +7,7 @@ parsing JSON Lines output into structured WebEndpoint objects.
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 from src.core.state_manager import EndpointType, WebEndpoint
@@ -85,7 +85,7 @@ class KatanaTool(BaseTool):
         
         return " ".join(cmd_parts)
     
-    def _parse_output(self, output: str, target: str) -> Dict[str, any]:
+    def _parse_output(self, output: str, target: str) -> Dict[str, Any]:
         """
         Parse katana JSON Lines output into structured data.
         
@@ -273,7 +273,7 @@ class KatanaTool(BaseTool):
         # Default to page
         return EndpointType.PAGE
     
-    def _get_empty_result(self, target: str) -> Dict[str, any]:
+    def _get_empty_result(self, target: str) -> Dict[str, Any]:
         """Return empty result when katana fails."""
         return {
             "endpoints": [],
@@ -281,7 +281,7 @@ class KatanaTool(BaseTool):
             "sitemap": None
         }
     
-    def _handle_error(self, error, target: str) -> Dict[str, any]:
+    def _handle_error(self, error, target: str) -> Dict[str, Any]:
         """
         Handle katana execution errors gracefully.
         

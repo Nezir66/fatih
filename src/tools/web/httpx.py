@@ -235,7 +235,7 @@ class HttpxTool(BaseTool):
         
         try:
             # Httpx outputs JSON Lines format
-            for line in output.strip().split("\\n"):
+            for line in output.strip().split("\n"):
                 line = line.strip()
                 if not line:
                     continue

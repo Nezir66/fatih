@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from typing import List, Set, Union
 from dataclasses import dataclass
 
+from src.utils.validators import is_ip_address
+
 
 @dataclass
 class ScopeConfig:
@@ -63,6 +65,11 @@ class ScopeGuard:
         """
         normalized = set()
         for target in targets:
+            # Check if it's a CIDR range (IP with /) - preserve these as-is
+            if '/' in target:
+                normalized.add(target.lower())
+                continue
+            
             cleaned = self._extract_hostname(target)
             if cleaned:
                 cleaned = cleaned.lower()
@@ -101,6 +108,7 @@ class ScopeGuard:
         Handles:
         - Full URLs: https://www.target.com/login?id=1 → www.target.com
         - IPs with ports: 192.168.1.5:8080 → 192.168.1.5
+        - IPv6 addresses: [::1]:8080 → [::1], ::1 → ::1
         - Domains with paths: target.com/api/v1 → target.com
         
         Args:
@@ -124,18 +132,34 @@ class ScopeGuard:
             except Exception:
                 pass
         
-        # Remove port numbers (e.g., target.com:8080)
-        if ':' in target:
-            # Check if it's an IPv6 address
-            if target.startswith('[') and ']:' in target:
+        # Handle IPv6 addresses with brackets and ports: [::1]:8080
+        if target.startswith('['):
+            # IPv6 with brackets
+            if ']:' in target:
                 target = target.split(']:')[0] + ']'
-            elif not target.startswith('['):
-                # Could be IPv4:port or domain:port
-                parts = target.rsplit(':', 1)
-                if len(parts) == 2:
-                    # Check if second part is a port number
-                    if parts[1].isdigit():
-                        target = parts[0]
+            # Just remove the brackets for normalization [::1] → ::1
+            target = target[1:-1] if target.endswith(']') else target[1:]
+            return target.lower()
+        
+        # Handle IPv6 addresses without brackets: ::1, 2001:db8::1
+        # IPv6 addresses contain multiple colons
+        if target.count(':') > 1 and not target.endswith(':'):
+            # This looks like an IPv6 address, return as-is
+            # (could be ::1, 2001:db8::1, etc.)
+            try:
+                ipaddress.ip_address(target)
+                return target.lower()
+            except ValueError:
+                pass
+        
+        # Remove port numbers for IPv4 and domains (e.g., target.com:8080, 192.168.1.5:8080)
+        if ':' in target:
+            # Single colon - likely IPv4:port or domain:port
+            parts = target.rsplit(':', 1)
+            if len(parts) == 2:
+                # Check if second part is a port number
+                if parts[1].isdigit():
+                    target = parts[0]
         
         # Remove paths (anything after /)
         if '/' in target:
@@ -282,23 +306,48 @@ class ScopeGuard:
         if not normalized:
             return False
         
+        # Check if explicitly allowed (bypasses safety checks)
+        is_explicitly_allowed = self._is_explicitly_allowed(normalized)
+        if is_explicitly_allowed:
+            return True
+        
         # Safety brake: Block localhost unless explicitly allowed
-        if self._is_localhost(normalized):
+        is_localhost = self._is_localhost(normalized)
+        if is_localhost:
             if not self.config.allow_localhost:
                 return False
         
         # Safety brake: Block private IPs unless explicitly allowed
-        if self._is_private_ip(normalized):
+        # Skip this check for localhost (loopback) addresses as they are handled above
+        if not is_localhost and self._is_private_ip(normalized):
             if not self.config.allow_private_ips:
                 return False
         
-        # Check against allowlist
+        # Not in scope
+        return False
+    
+    def _is_explicitly_allowed(self, normalized: str) -> bool:
+        """
+        Check if a normalized target is explicitly in the allowlist.
+        
+        Args:
+            normalized: Normalized target string
+            
+        Returns:
+            True if explicitly allowed, False otherwise
+        """
         for allowed in self._normalized_allowlist:
-            # Check if it's an IP or IP range
+            # Check if it's a CIDR range
+            if '/' in allowed:
+                if self._is_ip_in_range(normalized, allowed):
+                    return True
+                continue
+            
+            # Check if it's an IP
             try:
                 ipaddress.ip_address(allowed)
-                # It's an IP - check for match or range inclusion
-                if self._is_ip_in_range(normalized, allowed):
+                # It's an IP - check for match
+                if normalized == allowed:
                     return True
                 continue
             except ValueError:
@@ -359,11 +408,7 @@ class ScopeGuard:
     
     def _is_ip(self, target: str) -> bool:
         """Helper to check if target is an IP address."""
-        try:
-            ipaddress.ip_address(target)
-            return True
-        except ValueError:
-            return False
+        return is_ip_address(target)
 
 
 # Convenience function for quick validation
