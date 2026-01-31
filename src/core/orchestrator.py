@@ -18,6 +18,7 @@ from src.llm.prompts import SYSTEM_PROMPT
 from src.tools.definitions import ALL_TOOLS
 from src.tools.discovery.subfinder import SubfinderTool
 from src.tools.network.nmap import NmapTool
+from src.tools.web.httpx import HttpxTool
 from src.tools.web.katana import KatanaTool
 from src.tools.web.nuclei import NucleiTool
 from src.tools.web.playwright_crawler import PlaywrightCrawlerTool
@@ -80,6 +81,7 @@ class Orchestrator:
         self.subfinder_tool = SubfinderTool(self.scope_guard)
         self.katana_tool = KatanaTool(self.scope_guard)
         self.playwright_tool = PlaywrightCrawlerTool(self.scope_guard)
+        self.httpx_tool = HttpxTool(self.scope_guard)
         
         # Tool mapping: function names from definitions -> tool instances
         self.tool_map = {
@@ -87,7 +89,8 @@ class Orchestrator:
             "run_nuclei": self.nuclei_tool,
             "run_subfinder": self.subfinder_tool,
             "run_katana": self.katana_tool,
-            "run_playwright_crawler": self.playwright_tool
+            "run_playwright_crawler": self.playwright_tool,
+            "run_httpx": self.httpx_tool
         }
         
         # Message history for LLM context
@@ -386,6 +389,28 @@ class Orchestrator:
                 self.state_manager.complete_crawl(target, None)
                 
                 logger.info(f"Added {len(endpoints)} endpoints from playwright crawl for {target}")
+        
+        elif tool_name == "run_httpx":
+            # Result is Dict with services and vhosts
+            if isinstance(result, dict) and "services" in result:
+                services = result["services"]
+                vhosts = result.get("vhosts", [])
+                
+                # Update state with first service info (primary URL)
+                if services:
+                    primary = services[0]
+                    self.state_manager.update_web_host_httpx(
+                        base_url=target,
+                        status=primary.get("status_code"),
+                        title=primary.get("title"),
+                        web_server=primary.get("web_server"),
+                        content_length=primary.get("content_length"),
+                        tech_stack=primary.get("tech_stack", []),
+                        vhosts=vhosts
+                    )
+                
+                logger.info(f"Updated HTTP probing data for {target}: "
+                           f"{len(services)} services, {len(vhosts)} vhosts")
     
     def _summarize_result(self, result: Any) -> str:
         """Create a brief summary of tool result for action history."""
@@ -398,6 +423,11 @@ class Orchestrator:
                 return f"Error: {result['error']}"
             elif "endpoints" in result:
                 return f"Crawl with {result.get('total_count', 0)} endpoints"
+            elif "services" in result:
+                # Httpx result
+                services_count = result.get('total_count', 0)
+                vhosts_count = len(result.get('vhosts', []))
+                return f"HTTP probe: {services_count} services, {vhosts_count} vhosts"
         return "Success"
     
     def export_report(self, output_path: str = "outputs/report.json") -> None:

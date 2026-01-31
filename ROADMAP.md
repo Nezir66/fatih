@@ -32,11 +32,12 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
   - [x] Endpoint Discovery (URLs, Forms, APIs)
   - [x] JavaScript Parsing für dynamic endpoints
   - [x] Sitemap Generation
-- [ ] **HTTP Probing (Httpx)**
-  - [ ] Tech Stack Detection (Wappalyzer-style)
-  - [ ] Status Code & Response Analysis
-  - [ ] Screenshot Capture für Webseiten
-  - [ ] Virtual Host Discovery
+- [x] **HTTP Probing (Httpx)** ✅
+  - [x] Tech Stack Detection (Wappalyzer-style)
+  - [x] Status Code & Response Analysis
+  - [x] Virtual Host Discovery
+  - [x] Support für Single URLs & Listen
+  - Note: Screenshots via `run_playwright_crawler` (bessere ARM64-Unterstützung)
 - [ ] **Directory & File Brute Forcing**
   - [ ] Gobuster/ffuf Integration
   - [ ] Wordlist Management (common.txt, raft-\*)
@@ -259,9 +260,9 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
 
 ### Sofort implementieren (High Value, Low Effort):
 
-1. [ ] **Katana** - Web Crawling für mehr Endpoints
-2. [ ] **Httpx** - Tech Detection + Screenshots
-3. [ ] **Gobuster** - Directory Brute Force
+1. [x] **Katana** - Web Crawling für mehr Endpoints ✅
+2. [x] **Httpx** - Tech Detection + HTTP Probing ✅
+3. [ ] **Gobuster/ffuf** - Directory Brute Force
 4. [ ] **HTML Reports** - Professionelle Deliverables
 5. [ ] **SQLMap** - SQL Injection Testing
 
@@ -282,13 +283,13 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
 
 ## Aktueller Status
 
-**Abgeschlossen:** 15/100+ Features (15%)
+**Abgeschlossen:** 18/100+ Features (18%)
 
 **Nächster Meilenstein:** Phase 2 - Web Application Testing
 
-**Empfohlener Fokus:** Httpx + Gobuster + HTML Reports
+**Empfohlener Fokus:** ffuf/Gobuster + HTML Reports + SQLMap
 
 ---
 
-_Letzte Aktualisierung: 2026-01-30_
+_Letzte Aktualisierung: 2026-01-31_
 _Version: 0.1.0-alpha_

@@ -99,6 +99,16 @@ class WebHost(BaseModel):
     crawl_completed: bool = False
     last_crawled: Optional[datetime] = None
     
+    # HTTP Probing results (httpx)
+    http_status: Optional[int] = None
+    http_title: Optional[str] = None
+    web_server: Optional[str] = None
+    content_length: Optional[int] = None
+    tech_stack: List[str] = Field(default_factory=list)
+    vhosts: List[str] = Field(default_factory=list)
+    httpx_scanned: bool = False
+    last_httpx_scan: Optional[datetime] = None
+    
     def add_endpoint(self, endpoint: WebEndpoint) -> bool:
         """Add endpoint if not duplicate. Returns True if added."""
         existing_urls = {e.url for e in self.endpoints}
@@ -121,17 +131,68 @@ class WebHost(BaseModel):
         """Get all endpoints of a specific type."""
         return [e for e in self.endpoints if e.endpoint_type == endpoint_type]
     
+    def update_httpx_data(self, status: Optional[int] = None, title: Optional[str] = None,
+                         web_server: Optional[str] = None, content_length: Optional[int] = None,
+                         tech_stack: Optional[List[str]] = None, vhosts: Optional[List[str]] = None) -> None:
+        """Update HTTP probing results from httpx scan.
+        
+        Args:
+            status: HTTP status code
+            title: Page title
+            web_server: Web server header value
+            content_length: Response content length
+            tech_stack: List of detected technologies
+            vhosts: List of discovered virtual hosts
+        """
+        if status is not None:
+            self.http_status = status
+        if title is not None:
+            self.http_title = title
+        if web_server is not None:
+            self.web_server = web_server
+        if content_length is not None:
+            self.content_length = content_length
+        if tech_stack:
+            # Merge tech stack, avoiding duplicates
+            existing = set(self.tech_stack)
+            for tech in tech_stack:
+                if tech not in existing:
+                    self.tech_stack.append(tech)
+        if vhosts:
+            # Merge vhosts, avoiding duplicates
+            existing = set(self.vhosts)
+            for vhost in vhosts:
+                if vhost not in existing:
+                    self.vhosts.append(vhost)
+        
+        self.httpx_scanned = True
+        self.last_httpx_scan = datetime.utcnow()
+    
     def to_summary(self) -> Dict[str, Any]:
         """Return a compact summary for AI context."""
-        return {
+        result = {
             "base_url": self.base_url,
             "total_endpoints": len(self.endpoints),
             "pages": len(self.get_endpoints_by_type(EndpointType.PAGE)),
             "forms": len(self.forms),
             "apis": len(self.apis),
             "js_files": len(self.js_files),
-            "crawl_completed": self.crawl_completed
+            "crawl_completed": self.crawl_completed,
+            "httpx_scanned": self.httpx_scanned
         }
+        
+        # Include HTTP probing data if available
+        if self.httpx_scanned:
+            result["http_info"] = {
+                "status": self.http_status,
+                "title": self.http_title,
+                "server": self.web_server,
+                "content_length": self.content_length,
+                "tech_stack": self.tech_stack,
+                "vhosts_count": len(self.vhosts)
+            }
+        
+        return result
 
 
 class Vulnerability(BaseModel):
@@ -554,6 +615,32 @@ class StateManager:
             web_host.sitemap = sitemap
         self._trigger_auto_save()
         logger.info(f"Crawl completed for {base_url}: {len(web_host.endpoints)} endpoints discovered")
+    
+    def update_web_host_httpx(self, base_url: str, status: Optional[int] = None,
+                              title: Optional[str] = None, web_server: Optional[str] = None,
+                              content_length: Optional[int] = None, tech_stack: Optional[List[str]] = None,
+                              vhosts: Optional[List[str]] = None) -> None:
+        """Update HTTP probing results for a web host.
+        
+        Args:
+            base_url: The base URL of the web application
+            status: HTTP status code
+            title: Page title
+            web_server: Web server header
+            content_length: Response content length
+            tech_stack: List of detected technologies
+            vhosts: List of discovered virtual hosts
+        """
+        web_host = self.add_web_host(base_url)
+        web_host.update_httpx_data(
+            status=status, title=title, web_server=web_server,
+            content_length=content_length, tech_stack=tech_stack,
+            vhosts=vhosts
+        )
+        self._trigger_auto_save()
+        logger.info(f"Updated HTTP probing data for {base_url}: "
+                   f"status={status}, tech={len(tech_stack) if tech_stack else 0} items, "
+                   f"vhosts={len(vhosts) if vhosts else 0} items")
     
     # ==================== Vulnerability Management ====================
     

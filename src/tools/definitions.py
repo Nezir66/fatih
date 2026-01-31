@@ -141,6 +141,34 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                 },
                 "strict": True
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_httpx",
+                "description": "Perform HTTP probing with technology detection, status code analysis, and optional screenshot capture. Detects web server type, technology stack (React, WordPress, etc.), page titles, and content length. Use this after discovering subdomains or endpoints to gather detailed HTTP service information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target URL to probe (e.g., 'https://example.com' or 'https://api.example.com'). Must include protocol (http/https). For multiple targets discovered by subfinder, run this tool multiple times or use the same domain pattern."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["probe", "vhost"],
+                            "description": "Operation mode: 'probe' for standard HTTP probing with tech detection (default), 'vhost' for virtual host discovery (slower, use when suspicious of shared hosting). Note: Use 'run_playwright_crawler' for screenshots instead."
+                        },
+                        "follow_redirects": {
+                            "type": "boolean",
+                            "description": "Follow HTTP redirects (default: true). Set to false to analyze initial response only."
+                        }
+                    },
+                    "required": ["target", "mode", "follow_redirects"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
         }
     ]
 
