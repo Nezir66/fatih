@@ -128,6 +128,16 @@ rm -rf $GOPATH/pkg
 cd /
 rm -rf "$TEMP_DIR"
 
+# Install SecLists wordlists for fuzzing
+echo ""
+echo "Installing SecLists wordlists..."
+git clone --depth 1 https://github.com/danielmiessler/SecLists.git /usr/share/seclists
+# Clean up unnecessary files to save space
+rm -rf /usr/share/seclists/.git
+rm -rf /usr/share/seclists/Passwords  # We don't need password lists for directory fuzzing
+rm -rf /usr/share/seclists/Fuzzing    # Remove fuzzing payloads to save space
+echo "  SecLists installed to /usr/share/seclists"
+
 echo ""
 echo "=== Verification ==="
 echo "Katana: $(katana -version 2>&1 | head -n1 || echo 'NOT INSTALLED')"

@@ -38,11 +38,11 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
   - [x] Virtual Host Discovery
   - [x] Support für Single URLs & Listen
   - Note: Screenshots via `run_playwright_crawler` (bessere ARM64-Unterstützung)
-- [ ] **Directory & File Brute Forcing**
-  - [ ] Gobuster/ffuf Integration
-  - [ ] Wordlist Management (common.txt, raft-\*)
-  - [ ] File Extension Fuzzing (.php, .bak, .zip)
-  - [ ] Status Code Filtering (200, 301, 403, 404)
+- [ ] **Directory & File Brute Forcing** ✅
+  - [x] Gobuster/ffuf Integration
+  - [x] Wordlist Management (common.txt, raft-*)
+  - [x] File Extension Fuzzing (.php, .bak, .zip)
+  - [x] Status Code Filtering (200, 301, 403, 404)
 
 ### API Testing
 
@@ -262,7 +262,7 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
 
 1. [x] **Katana** - Web Crawling für mehr Endpoints ✅
 2. [x] **Httpx** - Tech Detection + HTTP Probing ✅
-3. [ ] **Gobuster/ffuf** - Directory Brute Force
+3. [x] **ffuf** - Directory Brute Force ✅
 4. [ ] **HTML Reports** - Professionelle Deliverables
 5. [ ] **SQLMap** - SQL Injection Testing
 
@@ -283,13 +283,13 @@ Diese Roadmap zeigt alle Features, die für ein vollständiges professionelles P
 
 ## Aktueller Status
 
-**Abgeschlossen:** 18/100+ Features (18%)
+**Abgeschlossen:** 22/100+ Features (22%)
 
 **Nächster Meilenstein:** Phase 2 - Web Application Testing
 
-**Empfohlener Fokus:** ffuf/Gobuster + HTML Reports + SQLMap
+**Empfohlener Fokus:** HTML Reports + SQLMap
 
 ---
 
-_Letzte Aktualisierung: 2026-01-31_
+_Letzte Aktualisierung: 2026-02-07_
 _Version: 0.1.0-alpha_

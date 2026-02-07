@@ -7,7 +7,8 @@ penetration testing workflow.
 
 from src.tools.discovery.subfinder import SubfinderTool
 from src.tools.network.nmap import NmapTool
+from src.tools.web.ffuf import FfufTool
 from src.tools.web.httpx import HttpxTool
 from src.tools.web.nuclei import NucleiTool
 
-__all__ = ["SubfinderTool", "NmapTool", "HttpxTool", "NucleiTool"]
+__all__ = ["SubfinderTool", "NmapTool", "HttpxTool", "NucleiTool", "FfufTool"]

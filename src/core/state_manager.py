@@ -339,6 +339,28 @@ class Action(BaseModel):
         return f"{self.tool}|{self.target}|{self.parameters}"
 
 
+# Phase status enum
+class PhaseStatus(str, Enum):
+    """Status of assessment phases."""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
+# All available phases
+ALL_PHASES = [
+    "reconnaissance",
+    "http_probing", 
+    "port_scanning",
+    "web_crawling",
+    "directory_fuzzing",
+    "vulnerability_scanning"
+]
+
+# Phases that require a web server to be found
+WEB_DEPENDENT_PHASES = ["web_crawling", "directory_fuzzing", "vulnerability_scanning"]
+
+
 class Session(BaseModel):
     """Root session containing all scan data."""
     id: str = Field(default_factory=lambda: datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
@@ -348,6 +370,13 @@ class Session(BaseModel):
     hosts: Dict[str, Host] = Field(default_factory=dict)
     web_hosts: Dict[str, WebHost] = Field(default_factory=dict)
     executed_actions: List[Action] = Field(default_factory=list)
+    
+    # Phase tracking for assessment workflow
+    phases: Dict[str, str] = Field(default_factory=lambda: {
+        phase: PhaseStatus.PENDING.value for phase in ALL_PHASES
+    })
+    required_phases: List[str] = Field(default_factory=lambda: ALL_PHASES.copy())
+    web_server_found: bool = False
     
     def get_or_create_host(self, identifier: str) -> Host:
         """Get existing host or create new one."""
@@ -424,7 +453,8 @@ class Session(BaseModel):
             "total_ports": total_ports,
             "open_ports": open_ports,
             "total_vulnerabilities": total_vulns,
-            "actions_executed": len(self.executed_actions)
+            "actions_executed": len(self.executed_actions),
+            "web_server_found": self.web_server_found
         }
     
     def to_summary(self) -> Dict[str, Any]:
@@ -433,8 +463,58 @@ class Session(BaseModel):
             "session_id": self.id,
             "target": self.target,
             "hosts": {k: v.to_summary() for k, v in self.hosts.items()},
+            "web_hosts": {k: {"url": v.base_url, "status": v.http_status, "title": v.http_title} 
+                         for k, v in self.web_hosts.items()},
+            "phases_completed": self.get_completed_phases(),
+            "phases_remaining": self.get_remaining_phases(),
+            "phases_skipped": self.get_skipped_phases(),
+            "web_server_found": self.web_server_found,
             "summary": self.get_summary()
         }
+    
+    # ==================== Phase Management ====================
+    
+    def mark_phase_complete(self, phase: str) -> None:
+        """Mark a phase as completed."""
+        if phase in self.phases:
+            self.phases[phase] = PhaseStatus.COMPLETED.value
+    
+    def mark_phase_skipped(self, phase: str) -> None:
+        """Mark a phase as skipped (e.g., no web server found)."""
+        if phase in self.phases:
+            self.phases[phase] = PhaseStatus.SKIPPED.value
+    
+    def get_completed_phases(self) -> List[str]:
+        """Return list of completed phase names."""
+        return [p for p, status in self.phases.items() 
+                if status == PhaseStatus.COMPLETED.value]
+    
+    def get_remaining_phases(self) -> List[str]:
+        """Return list of pending phase names that are required."""
+        return [p for p in self.required_phases 
+                if self.phases.get(p) == PhaseStatus.PENDING.value]
+    
+    def get_skipped_phases(self) -> List[str]:
+        """Return list of skipped phase names."""
+        return [p for p, status in self.phases.items() 
+                if status == PhaseStatus.SKIPPED.value]
+    
+    def all_phases_complete(self) -> bool:
+        """Check if all required phases are completed or skipped."""
+        for phase in self.required_phases:
+            status = self.phases.get(phase, PhaseStatus.PENDING.value)
+            if status == PhaseStatus.PENDING.value:
+                return False
+        return True
+    
+    def set_web_server_found(self, found: bool) -> None:
+        """Update web server found status and skip web-dependent phases if needed."""
+        self.web_server_found = found
+        if not found:
+            # Skip web-dependent phases since there's no web server
+            for phase in WEB_DEPENDENT_PHASES:
+                if phase in self.phases and self.phases[phase] == PhaseStatus.PENDING.value:
+                    self.phases[phase] = PhaseStatus.SKIPPED.value
 
 
 class StateManager:
@@ -838,6 +918,52 @@ class StateManager:
     def get_summary(self) -> Dict[str, Any]:
         """Get high-level summary statistics."""
         return self.session.get_summary()
+    
+    # ==================== Phase Management ====================
+    
+    def mark_phase_complete(self, phase: str) -> None:
+        """Mark a phase as completed."""
+        self.session.mark_phase_complete(phase)
+        self._trigger_auto_save()
+        logger.debug(f"Phase '{phase}' marked as completed")
+    
+    def mark_phase_skipped(self, phase: str) -> None:
+        """Mark a phase as skipped."""
+        self.session.mark_phase_skipped(phase)
+        self._trigger_auto_save()
+        logger.debug(f"Phase '{phase}' marked as skipped")
+    
+    def get_remaining_phases(self) -> List[str]:
+        """Get list of phases that are still pending."""
+        return self.session.get_remaining_phases()
+    
+    def get_completed_phases(self) -> List[str]:
+        """Get list of completed phases."""
+        return self.session.get_completed_phases()
+    
+    def all_phases_complete(self) -> bool:
+        """Check if all required phases are done (completed or skipped)."""
+        return self.session.all_phases_complete()
+    
+    def set_web_server_found(self, found: bool) -> None:
+        """Update web server status and auto-skip web phases if no server found."""
+        self.session.set_web_server_found(found)
+        self._trigger_auto_save()
+        if not found:
+            logger.info("No web server found - skipping web-dependent phases")
+    
+    def set_required_phases(self, phases: List[str]) -> None:
+        """Set which phases are required (for --phases CLI flag)."""
+        valid_phases = [p for p in phases if p in ALL_PHASES]
+        self.session.required_phases = valid_phases
+        
+        # Mark non-required phases as skipped
+        for phase in ALL_PHASES:
+            if phase not in valid_phases:
+                self.session.mark_phase_skipped(phase)
+        
+        self._trigger_auto_save()
+        logger.info(f"Required phases set to: {valid_phases}")
     
     # ==================== Report Generation ====================
     

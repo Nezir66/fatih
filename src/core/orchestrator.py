@@ -18,12 +18,24 @@ from src.llm.prompts import SYSTEM_PROMPT
 from src.tools.definitions import ALL_TOOLS
 from src.tools.discovery.subfinder import SubfinderTool
 from src.tools.network.nmap import NmapTool
+from src.tools.web.ffuf import FfufTool
 from src.tools.web.httpx import HttpxTool
 from src.tools.web.katana import KatanaTool
 from src.tools.web.nuclei import NucleiTool
 from src.tools.web.playwright_crawler import PlaywrightCrawlerTool
 
 logger = logging.getLogger(__name__)
+
+# Mapping from tool names to assessment phases
+TOOL_TO_PHASE = {
+    "run_subfinder": "reconnaissance",
+    "run_httpx": "http_probing",
+    "run_nmap": "port_scanning",
+    "run_katana": "web_crawling",
+    "run_playwright_crawler": "web_crawling",
+    "run_ffuf": "directory_fuzzing",
+    "run_nuclei": "vulnerability_scanning"
+}
 
 
 class Orchestrator:
@@ -85,6 +97,7 @@ class Orchestrator:
         self.katana_tool = KatanaTool(self.scope_guard)
         self.playwright_tool = PlaywrightCrawlerTool(self.scope_guard)
         self.httpx_tool = HttpxTool(self.scope_guard)
+        self.ffuf_tool = FfufTool(self.scope_guard)
         
         # Tool mapping: function names from definitions -> tool instances
         self.tool_map = {
@@ -93,7 +106,8 @@ class Orchestrator:
             "run_subfinder": self.subfinder_tool,
             "run_katana": self.katana_tool,
             "run_playwright_crawler": self.playwright_tool,
-            "run_httpx": self.httpx_tool
+            "run_httpx": self.httpx_tool,
+            "run_ffuf": self.ffuf_tool
         }
         
         # Message history for LLM context (limited to prevent overflow)
@@ -201,7 +215,7 @@ class Orchestrator:
         
         # Check for tool calls
         if not response.tool_calls:
-            # No tool calls means the AI is done or thinking
+            # No tool calls - check if we should continue or stop
             if response.content:
                 # Add the thought to history as a regular assistant message
                 self.message_history.append({
@@ -210,6 +224,23 @@ class Orchestrator:
                 })
             else:
                 logger.warning("LLM returned no content and no tool calls")
+            
+            # Check if all phases are complete before stopping
+            remaining_phases = self.state_manager.get_remaining_phases()
+            if remaining_phases:
+                # There are still phases to complete - remind the LLM
+                logger.info(f"Phases remaining: {remaining_phases} - prompting LLM to continue")
+                self.message_history.append({
+                    "role": "user",
+                    "content": f"REMINDER: You have NOT completed all assessment phases. "
+                              f"Remaining phases: {remaining_phases}. "
+                              f"Please continue with the next phase. "
+                              f"DO NOT stop until phases_remaining is empty."
+                })
+                return True  # Continue the loop
+            
+            # All phases complete - OK to stop
+            logger.info("All phases completed or skipped. Assessment finished.")
             return False
         
         # Build the assistant message with tool_calls for history
@@ -259,6 +290,9 @@ class Orchestrator:
             # Record the action
             result_summary = self._summarize_result(result)
             self.state_manager.record_action(tool_name, target, params_str, result_summary)
+            
+            # Update phase status based on tool execution
+            self._update_phase_status(tool_name, result)
             
             # Add tool output to history for next LLM call
             tool_response = {
@@ -436,6 +470,81 @@ class Orchestrator:
                 
                 logger.info(f"Updated HTTP probing data for {target}: "
                            f"{len(services)} services, {len(vhosts)} vhosts")
+        
+        elif tool_name == "run_ffuf":
+            # Result is Dict with endpoints from directory brute forcing
+            if isinstance(result, dict) and "endpoints" in result:
+                endpoints = result["endpoints"]
+                
+                # Add each discovered endpoint to state
+                for endpoint in endpoints:
+                    self.state_manager.add_web_endpoint(target, endpoint)
+                
+                dirs_count = result.get("directories", 0)
+                files_count = result.get("files", 0)
+                logger.info(f"Added {len(endpoints)} endpoints from ffuf scan for {target}: "
+                           f"{dirs_count} directories, {files_count} files")
+    
+    def _update_phase_status(self, tool_name: str, result: Any) -> None:
+        """
+        Update phase status based on tool execution and check for web server presence.
+        
+        This method:
+        1. Marks the corresponding phase as complete
+        2. Detects if a web server was found (for conditional phase skipping)
+        
+        Args:
+            tool_name: Name of the tool that was executed
+            result: Result from the tool execution
+        """
+        # Mark the phase as complete
+        if tool_name in TOOL_TO_PHASE:
+            phase = TOOL_TO_PHASE[tool_name]
+            self.state_manager.mark_phase_complete(phase)
+            logger.info(f"Phase '{phase}' completed via {tool_name}")
+        
+        # Check for web server detection (affects conditional phases)
+        self._check_web_server_presence(tool_name, result)
+    
+    def _check_web_server_presence(self, tool_name: str, result: Any) -> None:
+        """
+        Check if a web server was found and update conditional phase status.
+        
+        If no web server is found after httpx/nmap, web-dependent phases
+        (crawling, fuzzing, vuln-scan) will be automatically skipped.
+        
+        Args:
+            tool_name: Name of the tool that was executed
+            result: Result from the tool execution
+        """
+        if tool_name == "run_httpx":
+            # Check if httpx found any web services
+            if isinstance(result, dict):
+                services = result.get("services", [])
+                if services:
+                    # Found web services - enable web phases
+                    self.state_manager.set_web_server_found(True)
+                    logger.info("Web server detected via httpx - web phases enabled")
+                elif not self.state_manager.session.web_server_found:
+                    # No services found and no previous detection
+                    logger.info("No web services found via httpx")
+        
+        elif tool_name == "run_nmap":
+            # Check if nmap found port 80 or 443
+            if hasattr(result, 'ports'):
+                web_ports = [80, 443, 8080, 8443]
+                has_web_port = any(
+                    port.number in web_ports and port.state.value == "open"
+                    for port in result.ports.values()
+                )
+                if has_web_port:
+                    self.state_manager.set_web_server_found(True)
+                    logger.info("Web port detected via nmap - web phases enabled")
+                elif not self.state_manager.session.web_server_found:
+                    # No web ports found and no previous detection
+                    # After nmap, if still no web server, skip web phases
+                    self.state_manager.set_web_server_found(False)
+                    logger.info("No web ports found - web-dependent phases will be skipped")
     
     def _summarize_result(self, result: Any) -> str:
         """Create a brief summary of tool result for action history."""
@@ -447,7 +556,12 @@ class Orchestrator:
             if "error" in result:
                 return f"Error: {result['error']}"
             elif "endpoints" in result:
-                return f"Crawl with {result.get('total_count', 0)} endpoints"
+                total = result.get('total_count', 0)
+                dirs = result.get('directories', 0)
+                files = result.get('files', 0)
+                if dirs or files:
+                    return f"Fuzz scan: {total} endpoints ({dirs} dirs, {files} files)"
+                return f"Crawl with {total} endpoints"
             elif "services" in result:
                 # Httpx result
                 services_count = result.get('total_count', 0)

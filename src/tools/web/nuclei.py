@@ -8,12 +8,26 @@ parsing JSON Lines output into structured Vulnerability objects.
 import hashlib
 import json
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.core.state_manager import Severity, Vulnerability
 from src.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
+
+# Predefined template categories for targeted scanning (using template directories)
+TEMPLATE_CATEGORIES = {
+    "quick": "http/exposures/,http/misconfiguration/",  # Fast scan for common issues (~800 templates)
+    "full": "",  # All templates (slow but comprehensive)
+    "cves": "http/cves/",  # CVE checks
+    "exposures": "http/exposures/",  # Information disclosure
+    "misconfig": "http/misconfiguration/",  # Misconfigurations
+    "vulns": "http/vulnerabilities/",  # Vulnerability templates
+    "default-logins": "http/default-logins/",  # Default credentials
+    "fuzzing": "http/fuzzing/",  # Fuzzing templates (SQL injection, XSS, etc.)
+    "panels": "http/exposed-panels/",  # Exposed admin panels
+    "tech": "http/technologies/",  # Technology detection
+}
 
 
 class NucleiTool(BaseTool):
@@ -44,20 +58,49 @@ class NucleiTool(BaseTool):
             **kwargs: Additional options:
                 - templates: Specific template directory or file
                 - severity: Filter by severity (e.g., "high,critical")
+                - category: Predefined category (quick, full, web, sqli, xss, lfi, rce)
+                - rate_limit: Requests per second (default: 150)
+                - timeout: HTTP timeout per request in seconds (default: 10)
+                - retries: Number of retries for failed requests (default: 1)
                 
         Returns:
             Command string
         """
         templates = kwargs.get("templates", "")
         severity = kwargs.get("severity", "")
+        category = kwargs.get("category", "quick")  # Default to quick scan
+        rate_limit = kwargs.get("rate_limit", 150)
+        timeout = kwargs.get("timeout", 10)
+        retries = kwargs.get("retries", 1)
         
-        template_arg = f"-t {templates}" if templates else ""
-        severity_arg = f"-severity {severity}" if severity else ""
+        # Build base command parts
+        cmd_parts = ["nuclei", "-u", target]
         
-        # -u: Target URL
-        # -json: JSON Lines output
-        # -silent: Suppress banner and progress
-        return f"nuclei -u {target} {template_arg} {severity_arg} -json -silent".strip()
+        # Template selection
+        if templates:
+            cmd_parts.extend(["-t", templates])
+        elif category in TEMPLATE_CATEGORIES and TEMPLATE_CATEGORIES[category]:
+            # Use predefined category template directories
+            cmd_parts.extend(["-t", TEMPLATE_CATEGORIES[category]])
+        # If category is "full" or not found, don't add -t or -tags (runs all)
+        
+        # Severity filtering
+        if severity:
+            cmd_parts.extend(["-severity", severity])
+        
+        # Rate limiting to avoid overwhelming target
+        cmd_parts.extend(["-rate-limit", str(rate_limit)])
+        
+        # HTTP timeout
+        cmd_parts.extend(["-timeout", str(timeout)])
+        
+        # Retries
+        cmd_parts.extend(["-retries", str(retries)])
+        
+        # Output format
+        cmd_parts.extend(["-jsonl", "-silent"])
+        
+        return " ".join(cmd_parts)
     
     def _parse_output(self, output: str, target: str) -> List[Vulnerability]:
         """

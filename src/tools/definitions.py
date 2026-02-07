@@ -80,12 +80,17 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                             "type": "string",
                             "description": "URL to scan (e.g., 'https://example.com' or 'https://api.example.com/v1'). Must include protocol (http/https)."
                         },
-                        "templates": {
+                        "category": {
                             "type": "string",
-                            "description": "Specific template path or filter. Examples: 'cves/' for CVE checks only, 'http/exposures/' for exposure detection, 'misconfiguration/' for misconfigs. Use empty string '' to use all available templates (default behavior)."
+                            "enum": ["quick", "full", "cves", "exposures", "misconfig", "vulns", "default-logins", "fuzzing", "panels", "tech"],
+                            "description": "Scan category: 'quick' for fast common checks (exposures+misconfigs, ~800 templates, recommended), 'full' for all templates (slow), 'cves' for CVE checks, 'exposures' for info leaks, 'misconfig' for misconfigurations, 'vulns' for vulnerabilities, 'default-logins' for default credentials, 'fuzzing' for SQL injection/XSS, 'panels' for exposed admin panels, 'tech' for technology detection."
+                        },
+                        "severity": {
+                            "type": "string",
+                            "description": "Filter by severity level(s). Examples: 'critical', 'high,critical', 'medium,high,critical'. Use empty string '' to include all severity levels."
                         }
                     },
-                    "required": ["target", "templates"],
+                    "required": ["target", "category", "severity"],
                     "additionalProperties": False
                 },
                 "strict": True
@@ -165,6 +170,43 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
                         }
                     },
                     "required": ["target", "mode", "follow_redirects"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_ffuf",
+                "description": "Perform directory and file brute forcing to discover hidden paths, backup files, admin panels, and other sensitive resources. Uses wordlists to fuzz URL paths. Returns discovered endpoints with HTTP status codes and content types.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target URL to fuzz (e.g., 'https://example.com'). Must include protocol (http/https). The tool will append FUZZ placeholder automatically."
+                        },
+                        "wordlist": {
+                            "type": "string",
+                            "enum": ["common", "raft-small-directories", "raft-medium-directories", "raft-small-files", "raft-medium-files", "directory-list-2.3-small", "api-endpoints", "backup-files"],
+                            "description": "Wordlist to use: 'common' for quick scans (~5k words), 'raft-small-directories' for directory enumeration (~20k), 'raft-medium-directories' for thorough directory scan (~60k), 'raft-small-files'/'raft-medium-files' for file discovery, 'api-endpoints' for API paths, 'backup-files' for backup file detection."
+                        },
+                        "extensions": {
+                            "type": "string",
+                            "enum": ["common", "backup", "config", "source", "all", "none"],
+                            "description": "File extensions to append: 'common' (.php,.html,.js,.txt,.xml,.json), 'backup' (.bak,.old,.zip,.tar), 'config' (.conf,.env,.yaml), 'source' (.php,.asp,.py,.rb), 'all' for comprehensive scan, 'none' for directories only."
+                        },
+                        "filter_codes": {
+                            "type": "string",
+                            "description": "HTTP status codes to filter out (hide from results). Use comma-separated values like '404,403' or empty string '' to show all. Default: '404'."
+                        },
+                        "recursion": {
+                            "type": "boolean",
+                            "description": "Enable recursive scanning into discovered directories (default: false). Warning: Can be slow on large sites."
+                        }
+                    },
+                    "required": ["target", "wordlist", "extensions", "filter_codes", "recursion"],
                     "additionalProperties": False
                 },
                 "strict": True
