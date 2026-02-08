@@ -1,8 +1,16 @@
-# 🏰 Project Fatih
+<div align="center">
+
+<img src="assets/images/logo.png" alt="Fatih Logo" width="200"/>
 
 **The Autonomous AI Penetration Testing Agent**
 
-![Status](https://img.shields.io/badge/Status-Development-yellow) ![Docker](https://img.shields.io/badge/Docker-Debian_Bookworm-blue) ![AI](https://img.shields.io/badge/AI-LLM_Powered-purple)
+[![Status](https://img.shields.io/badge/Status-Development-yellow)](https://github.com/Nezir66/fatih)
+[![Docker](https://img.shields.io/badge/Docker-Debian_Bookworm-blue)](https://www.docker.com/)
+[![AI](https://img.shields.io/badge/AI-LLM_Powered-purple)](https://openai.com/)
+
+---
+
+</div>
 
 ## 📖 Overview
 
@@ -12,12 +20,12 @@ It runs in a secure, isolated **Docker** environment (The Body) controlled by a 
 
 ## 🏗️ Architecture
 
-| Component              | Tech Stack                 | Description                                     |
-| :--------------------- | :------------------------- | :---------------------------------------------- |
-| **The Brain**          | OpenAI / Claude            | Decides strategy, analyzes code/responses.      |
-| **The Body**           | Docker (Debian Bookworm)   | Sandbox environment executing the tools.        |
-| **The Nervous System** | Python 3.11+               | Orchestrates API calls and parses tool outputs. |
-| **The Arsenal**        | Nmap, Nuclei, Subfinder    | Industry-standard CLI security tools.           |
+| Component              | Tech Stack               | Description                                     |
+| :--------------------- | :----------------------- | :---------------------------------------------- |
+| **The Brain**          | OpenAI / Claude          | Decides strategy, analyzes code/responses.      |
+| **The Body**           | Docker (Debian Bookworm) | Sandbox environment executing the tools.        |
+| **The Nervous System** | Python 3.11+             | Orchestrates API calls and parses tool outputs. |
+| **The Arsenal**        | Nmap, Nuclei, Subfinder  | Industry-standard CLI security tools.           |
 
 ## 🚀 Getting Started
 
