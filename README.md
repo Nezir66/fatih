@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="assets/images/logo.jpeg" alt="Fatih Logo" width="300"/>
-
-# F A T I H
+<img src="assets/images/logo.jpeg" alt="Fatih Logo" width="600"/>
 
 **The Autonomous AI Penetration Testing Agent**
 
